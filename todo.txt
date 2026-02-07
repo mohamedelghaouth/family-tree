@@ -1,0 +1,7 @@
+- When I make someone head of family, only their sons, daughters, and male descendants change family. Daughters' descendants inherit family from their husbands.
+
+- A man can have multiple wives. When I add a spouse, if the person does not exist, a new person is created and added to storage.
+
+- When I add a new person, if I do not specify they are head of family, they do not appear as family, and in search they appear without a family.
+
+- When I delete a person, the spouse is not updated and keeps pointing to the old ID. Also, if I delete a person, their children should not point to them, nor should their parents.
