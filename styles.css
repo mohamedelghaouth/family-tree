@@ -763,7 +763,7 @@ header h1 {
 
   /* Family Cards */
   .family-view {
-    padding: 140px 16px 16px; /* Increased for taller mobile header */
+    padding: 140px 16px 100px; /* Increased bottom padding to ensure last cards are visible */
     gap: 16px;
     touch-action: pan-y;
     -webkit-overflow-scrolling: touch;
@@ -899,6 +899,10 @@ header h1 {
 @media (max-width: 480px) {
   header h1 {
     font-size: 0.9rem;
+  }
+
+  .family-view {
+    padding: 140px 16px 120px; /* Extra bottom padding for small screens */
   }
 
   .family-card {
