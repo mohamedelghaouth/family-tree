@@ -169,16 +169,9 @@ function showFamilyTree(personId) {
   const person = allPersons[personId];
   if (!person) return;
 
-  // Find the true root (highest ancestor)
-  let rootId = personId;
-  let current = person;
-
-  // Traverse up to find the highest ancestor (no parents)
-  while (current.fatherId || current.motherId) {
-    rootId = current.fatherId || current.motherId;
-    current = allPersons[rootId];
-    if (!current) break;
-  }
+  // Use the family patriarch as root (person whose familyId equals their id)
+  // Don't traverse up to parents - only show the family downward from the patriarch
+  let rootId = person.familyId || personId;
 
   currentView = "tree";
   currentRootId = rootId;
@@ -240,16 +233,9 @@ function navigateToPersonTree(personId) {
   const person = allPersons[personId];
   if (!person) return;
 
-  // Find the root of this person's family tree
-  let rootId = personId;
-  let current = person;
-
-  // Traverse up to find the patriarch/matriarch (no parents)
-  while (current.fatherId || current.motherId) {
-    rootId = current.fatherId || current.motherId;
-    current = allPersons[rootId];
-    if (!current) break;
-  }
+  // Use the family patriarch as root, not the highest ancestor
+  // This ensures we only show the family tree, not their parents
+  let rootId = person.familyId || personId;
 
   currentView = "tree";
   currentRootId = rootId;
@@ -265,6 +251,53 @@ function navigateToPersonTree(personId) {
   );
 
   // Auto-expand the path to the target person
+  const pathToTarget = getPathToTarget(rootId, personId);
+  pathToTarget.forEach((id) => expandedNodes.add(id));
+
+  // Update UI visibility
+  const treeContainer = document.getElementById("tree-container");
+  const familyView = document.getElementById("family-view");
+  const homeBtn = document.getElementById("home-btn");
+
+  treeContainer.style.display = "block";
+  familyView.style.display = "none";
+  homeBtn.style.display = "inline-flex";
+
+  // Center the view before rendering the tree
+  Tree.centerView();
+  renderTree();
+  setTimeout(() => Tree.highlightPerson(personId), 100);
+}
+
+// Show person with their parents (traverse up to show ancestry)
+function showPersonWithParents(personId) {
+  const person = allPersons[personId];
+  if (!person) return;
+
+  // Find the highest ancestor by traversing up
+  let rootId = personId;
+  let current = person;
+
+  while (current.fatherId || current.motherId) {
+    rootId = current.fatherId || current.motherId;
+    current = allPersons[rootId];
+    if (!current) break;
+  }
+
+  currentView = "tree";
+  currentRootId = rootId;
+  targetPersonId = personId;
+  expandedNodes.clear();
+  nodeOffsets = {};
+
+  // Push state to history
+  history.pushState(
+    { view: "tree", rootId: rootId, targetPersonId: personId },
+    "",
+    `#tree/${rootId}/${personId}`,
+  );
+
+  // Auto-expand the path from highest ancestor to the person
   const pathToTarget = getPathToTarget(rootId, personId);
   pathToTarget.forEach((id) => expandedNodes.add(id));
 
@@ -376,10 +409,32 @@ function showContextMenu(event, node) {
   contextMenu.style.left = event.pageX + "px";
   contextMenu.style.top = event.pageY + "px";
 
+  // Show/hide "Show Parents" button based on whether person has parents
+  const showParentsBtn = document.getElementById("ctx-show-parents");
+  if (node.data.fatherId || node.data.motherId) {
+    showParentsBtn.style.display = "block";
+  } else {
+    showParentsBtn.style.display = "none";
+  }
+
   // Update button actions
   document.getElementById("ctx-add-child").onclick = () => {
     hideContextMenu();
     openModal("add-child", node.data);
+  };
+
+  document.getElementById("ctx-add-parent").onclick = () => {
+    hideContextMenu();
+    if (node.data.fatherId && node.data.motherId) {
+      alert(`${node.data.name} لديه والدين بالفعل`);
+    } else {
+      openModal("add-parent", node.data);
+    }
+  };
+
+  document.getElementById("ctx-show-parents").onclick = () => {
+    hideContextMenu();
+    showPersonWithParents(node.data.id);
   };
 
   document.getElementById("ctx-edit").onclick = () => {
@@ -457,6 +512,18 @@ function openModal(action, person = null) {
     // Store parent info in data attributes
     personForm.dataset.fatherId = person.id;
     personForm.dataset.motherId = person.spouseId || "";
+    personForm.dataset.personId = generateId();
+  } else if (action === "add-parent") {
+    modalTitle.textContent = `إضافة والد لـ ${person.name}`;
+    personForm.reset();
+    document.getElementById("input-name").value = "";
+    document.getElementById("input-gender").value = "male";
+    document.getElementById("input-dates").value = "";
+    document.getElementById("input-spouse").value = "";
+    document.getElementById("input-info").value = "";
+    document.getElementById("input-is-head").checked = true;
+    // Store child info in data attributes
+    personForm.dataset.childId = person.id;
     personForm.dataset.personId = generateId();
   } else if (action === "edit") {
     modalTitle.textContent = `تعديل ${person.name}`;
@@ -595,7 +662,11 @@ function addOrEditPerson(event) {
     }
   }
 
-  if (currentAction === "add-child" || currentAction === "add-root") {
+  if (
+    currentAction === "add-child" ||
+    currentAction === "add-root" ||
+    currentAction === "add-parent"
+  ) {
     personData.childrenIds = [];
     allPersons[id] = personData;
 
@@ -610,6 +681,31 @@ function addOrEditPerson(event) {
         if (!allPersons[motherId].childrenIds)
           allPersons[motherId].childrenIds = [];
         allPersons[motherId].childrenIds.push(id);
+      }
+    } else if (currentAction === "add-parent") {
+      // Adding a parent to an existing person
+      const childId = personForm.dataset.childId;
+      const child = allPersons[childId];
+
+      if (child) {
+        // Add child to new parent's children
+        personData.childrenIds = [childId];
+
+        // Update child's parent reference based on gender
+        if (gender === "male") {
+          child.fatherId = id;
+        } else {
+          child.motherId = id;
+        }
+
+        // Parent remains in their own family (doesn't affect child's family)
+        // The parent will only appear when navigating up the tree
+        
+        // Navigate to show the new parent's tree
+        currentView = "tree";
+        currentRootId = id;
+        expandedNodes.clear();
+        expandedNodes.add(id);
       }
     } else if (currentAction === "add-root") {
       // When adding a root person, check current view
