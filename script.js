@@ -536,7 +536,7 @@ function openModal(action, person = null) {
     document.getElementById("input-dates").value = "";
     document.getElementById("input-spouse").value = "";
     document.getElementById("input-info").value = "";
-    document.getElementById("input-is-head").checked = true;
+    document.getElementById("input-is-head").checked = false;
     // Store info in data attributes - no parents
     personForm.dataset.fatherId = "";
     personForm.dataset.motherId = "";
@@ -562,7 +562,7 @@ function openModal(action, person = null) {
     document.getElementById("input-dates").value = "";
     document.getElementById("input-spouse").value = "";
     document.getElementById("input-info").value = "";
-    document.getElementById("input-is-head").checked = true;
+    document.getElementById("input-is-head").checked = false;
     // Store child info in data attributes
     personForm.dataset.childId = person.id;
     personForm.dataset.personId = generateId();
