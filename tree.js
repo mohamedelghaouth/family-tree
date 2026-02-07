@@ -465,6 +465,54 @@ const Tree = {
     }, 2500);
   },
 
+  // Scroll to show a person and their children
+  scrollToShowChildren(personId) {
+    const nodes = this.g.selectAll(".node-group").filter((d) => {
+      // Find the parent node and its immediate children
+      return d.data.id === personId || d.parent?.data.id === personId;
+    });
+
+    if (nodes.empty()) return;
+
+    // Calculate bounding box of parent and children
+    let minX = Infinity,
+      maxX = -Infinity,
+      minY = Infinity,
+      maxY = -Infinity;
+
+    nodes.each(function (d) {
+      const bbox = this.getBBox();
+      minX = Math.min(minX, d.x + bbox.x);
+      maxX = Math.max(maxX, d.x + bbox.x + bbox.width);
+      minY = Math.min(minY, d.y + bbox.y);
+      maxY = Math.max(maxY, d.y + bbox.y + bbox.height);
+    });
+
+    // Calculate center and scale to fit
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    const width = maxX - minX;
+    const height = maxY - minY;
+
+    // Calculate scale to fit with padding
+    const scale = Math.min(
+      this.width / (width + 200),
+      this.height / (height + 200),
+      1.2, // Max zoom
+    );
+
+    const transform = d3.zoomIdentity
+      .translate(this.width / 2, this.height / 2)
+      .scale(scale)
+      .translate(-centerX, -centerY);
+
+    this.svg
+      .transition()
+      .duration(600)
+      .ease(d3.easeCubicOut)
+      .call(this.zoom.transform, transform);
+  },
+
   // Truncate text
   truncate(str, len) {
     if (!str) return "";

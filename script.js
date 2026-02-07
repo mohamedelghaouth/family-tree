@@ -78,8 +78,18 @@ function toggleExpand(personId) {
     expandedNodes.add(personId);
     // Clear target when manually expanding to show all branches
     targetPersonId = null;
+    // Store the expanded node to auto-scroll after render
+    window.lastExpandedNodeId = personId;
   }
   renderTree();
+
+  // Auto-scroll to show children after a short delay (let DOM update)
+  if (window.lastExpandedNodeId) {
+    setTimeout(() => {
+      Tree.scrollToShowChildren(window.lastExpandedNodeId);
+      window.lastExpandedNodeId = null;
+    }, 100);
+  }
 }
 
 // Get all root families (unique patriarchs based on familyId)
@@ -406,8 +416,39 @@ function showContextMenu(event, node) {
   selectedNodeId = node.data.id;
 
   contextMenu.style.display = "block";
-  contextMenu.style.left = event.pageX + "px";
-  contextMenu.style.top = event.pageY + "px";
+
+  // Position menu initially to measure its size
+  contextMenu.style.left = "0px";
+  contextMenu.style.top = "0px";
+
+  // Get menu dimensions
+  const menuWidth = contextMenu.offsetWidth;
+  const menuHeight = contextMenu.offsetHeight;
+
+  // Get viewport dimensions
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+
+  // Calculate position
+  let left = event.pageX;
+  let top = event.pageY;
+
+  // Adjust if menu would go off right edge
+  if (left + menuWidth > viewportWidth) {
+    left = viewportWidth - menuWidth - 10;
+  }
+
+  // Adjust if menu would go off bottom edge
+  if (top + menuHeight > viewportHeight + window.scrollY) {
+    top = event.pageY - menuHeight;
+    // If still off-screen, position at bottom with some padding
+    if (top < window.scrollY) {
+      top = viewportHeight + window.scrollY - menuHeight - 10;
+    }
+  }
+
+  contextMenu.style.left = left + "px";
+  contextMenu.style.top = top + "px";
 
   // Show/hide "Show Parents" button based on whether person has parents
   const showParentsBtn = document.getElementById("ctx-show-parents");
@@ -625,15 +666,46 @@ function addOrEditPerson(event) {
   }
 
   // Handle spouse
-  if (currentAction === "edit" && personForm.dataset.spouseId) {
-    personData.spouseId = personForm.dataset.spouseId;
-    // Update spouse name if changed
-    if (spouseName && allPersons[personForm.dataset.spouseId]) {
-      allPersons[personForm.dataset.spouseId].name = spouseName;
+  if (currentAction === "edit") {
+    if (personForm.dataset.spouseId && spouseName) {
+      // Has existing spouse - update name
+      personData.spouseId = personForm.dataset.spouseId;
+      if (allPersons[personForm.dataset.spouseId]) {
+        allPersons[personForm.dataset.spouseId].name = spouseName;
+      }
+    } else if (spouseName && !personForm.dataset.spouseId) {
+      // Adding new spouse during edit
+      if (selectedSpouseId && allPersons[selectedSpouseId]) {
+        // Use existing person as spouse
+        personData.spouseId = selectedSpouseId;
+        allPersons[selectedSpouseId].spouseId = id;
+        if (!allPersons[selectedSpouseId].childrenIds) {
+          allPersons[selectedSpouseId].childrenIds = [];
+        }
+      } else {
+        // Create new spouse
+        const spouseId = generateId();
+        const spouseGender = gender === "male" ? "female" : "male";
+        const spouse = {
+          id: spouseId,
+          name: spouseName,
+          gender: spouseGender,
+          familyId: spouseId,
+          spouseId: id,
+          childrenIds: [],
+        };
+        allPersons[spouseId] = spouse;
+        personData.spouseId = spouseId;
+      }
+    } else if (!spouseName && personForm.dataset.spouseId) {
+      // Keep existing spouse if field is empty
+      personData.spouseId = personForm.dataset.spouseId;
     }
   } else if (
     spouseName &&
-    (currentAction === "add-child" || currentAction === "add-root")
+    (currentAction === "add-child" ||
+      currentAction === "add-root" ||
+      currentAction === "add-parent")
   ) {
     // Check if a spouse was selected from suggestions
     if (selectedSpouseId && allPersons[selectedSpouseId]) {
@@ -700,7 +772,7 @@ function addOrEditPerson(event) {
 
         // Parent remains in their own family (doesn't affect child's family)
         // The parent will only appear when navigating up the tree
-        
+
         // Navigate to show the new parent's tree
         currentView = "tree";
         currentRootId = id;
