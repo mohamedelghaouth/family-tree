@@ -641,6 +641,40 @@ header h1 {
   border-color: var(--accent);
 }
 
+.checkbox-wrapper {
+  margin-bottom: 16px;
+}
+
+.checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.checkbox-container:hover label {
+  color: var(--accent-light);
+}
+
+.checkbox-container input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent);
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.checkbox-container label {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin: 0;
+  flex: 1;
+  text-align: right;
+  transition: color 0.2s ease;
+}
+
 .form-actions {
   display: flex;
   gap: 10px;

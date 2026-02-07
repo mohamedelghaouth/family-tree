@@ -440,6 +440,7 @@ function openModal(action, person = null) {
     document.getElementById("input-dates").value = "";
     document.getElementById("input-spouse").value = "";
     document.getElementById("input-info").value = "";
+    document.getElementById("input-is-head").checked = true;
     // Store info in data attributes - no parents
     personForm.dataset.fatherId = "";
     personForm.dataset.motherId = "";
@@ -452,6 +453,7 @@ function openModal(action, person = null) {
     document.getElementById("input-dates").value = "";
     document.getElementById("input-spouse").value = "";
     document.getElementById("input-info").value = "";
+    document.getElementById("input-is-head").checked = false;
     // Store parent info in data attributes
     personForm.dataset.fatherId = person.id;
     personForm.dataset.motherId = person.spouseId || "";
@@ -465,6 +467,8 @@ function openModal(action, person = null) {
       ? allPersons[person.spouseId]?.name || ""
       : "";
     document.getElementById("input-info").value = person.info || "";
+    document.getElementById("input-is-head").checked =
+      person.familyId === person.id;
     // Store person info in data attributes
     personForm.dataset.personId = person.id;
     personForm.dataset.fatherId = person.fatherId || "";
@@ -504,6 +508,7 @@ function addOrEditPerson(event) {
   const fatherId = personForm.dataset.fatherId;
   const motherId = personForm.dataset.motherId;
   const info = document.getElementById("input-info").value;
+  const isHeadOfFamily = document.getElementById("input-is-head").checked;
 
   const personData = { id, name, gender, dates };
   if (fatherId) personData.fatherId = fatherId;
@@ -511,8 +516,28 @@ function addOrEditPerson(event) {
   if (info) personData.info = info;
 
   // Set familyId
-  if (currentAction === "add-root") {
-    // Root person is their own patriarch
+  if (isHeadOfFamily) {
+    // Person is head of their own family
+    personData.familyId = id;
+
+    // Update all descendants to belong to this family
+    if (currentAction === "edit" && allPersons[id]) {
+      function updateDescendants(personId) {
+        const current = allPersons[personId];
+        if (!current || !current.childrenIds) return;
+
+        current.childrenIds.forEach((childId) => {
+          const child = allPersons[childId];
+          if (child) {
+            child.familyId = id;
+            updateDescendants(childId);
+          }
+        });
+      }
+      updateDescendants(id);
+    }
+  } else if (currentAction === "add-root") {
+    // If not head and adding root, still set as their own patriarch
     personData.familyId = id;
   } else if (currentAction === "add-child") {
     // Child inherits familyId from father, or mother if no father
@@ -522,8 +547,14 @@ function addOrEditPerson(event) {
       personData.familyId = allPersons[motherId].familyId;
     }
   } else if (currentAction === "edit" && allPersons[id]) {
-    // Preserve existing familyId when editing
-    personData.familyId = allPersons[id].familyId;
+    // If not head, inherit from parent or keep existing
+    if (fatherId && allPersons[fatherId]) {
+      personData.familyId = allPersons[fatherId].familyId;
+    } else if (motherId && allPersons[motherId]) {
+      personData.familyId = allPersons[motherId].familyId;
+    } else {
+      personData.familyId = allPersons[id].familyId;
+    }
   }
 
   // Handle spouse
@@ -581,11 +612,17 @@ function addOrEditPerson(event) {
         allPersons[motherId].childrenIds.push(id);
       }
     } else if (currentAction === "add-root") {
-      // When adding a root person from home view, show their tree
-      currentView = "tree";
-      currentRootId = id;
-      expandedNodes.clear();
-      expandedNodes.add(id);
+      // When adding a root person, check current view
+      if (currentView === "home") {
+        // Stay on home view and refresh to show new family
+        currentView = "home";
+      } else {
+        // Show their tree if we're already in tree view
+        currentView = "tree";
+        currentRootId = id;
+        expandedNodes.clear();
+        expandedNodes.add(id);
+      }
     }
   } else if (currentAction === "edit") {
     // Preserve childrenIds
