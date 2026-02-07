@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>شجرة العائلة</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://unpkg.com/d3@7"></script>
+  </head>
+  <body>
+    <header>
+      <h1>🌳 شجرة العائلة</h1>
+      <div class="header-top">
+        <button id="burger-btn" class="burger-btn" aria-label="القائمة">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+      </div>
+      <div class="header-controls">
+        <button id="home-btn" class="btn secondary" style="display: none">
+          🏠 الرئيسية
+        </button>
+        <div class="search-container">
+          <input
+            type="text"
+            id="search"
+            placeholder="🔍 بحث..."
+            autocomplete="off"
+          />
+          <div id="search-suggestions" class="search-suggestions"></div>
+        </div>
+        <button id="add-root-btn" class="btn primary">➕ إضافة شخص</button>
+        <button id="export-btn" class="btn secondary">💾 تصدير</button>
+        <button id="import-btn" class="btn secondary">📂 استيراد</button>
+        <input
+          type="file"
+          id="import-file"
+          accept=".json"
+          style="display: none"
+        />
+        <button id="clear-btn" class="btn secondary">🗑️ مسح البيانات</button>
+      </div>
+
+      <!-- Mobile Menu -->
+      <div id="mobile-menu" class="mobile-menu">
+        <button
+          id="mobile-home-btn"
+          class="mobile-menu-item"
+          style="display: none"
+        >
+          🏠 الرئيسية
+        </button>
+        <button id="mobile-add-btn" class="mobile-menu-item">
+          ➕ إضافة شخص
+        </button>
+        <button id="mobile-export-btn" class="mobile-menu-item">
+          💾 تصدير
+        </button>
+        <button id="mobile-import-btn" class="mobile-menu-item">
+          📂 استيراد
+        </button>
+        <button id="mobile-clear-btn" class="mobile-menu-item">
+          🗑️ مسح البيانات
+        </button>
+      </div>
+      <div id="mobile-overlay" class="mobile-overlay"></div>
+    </header>
+
+    <!-- Family Overview -->
+    <div id="family-view" class="family-view">
+      <!-- Family cards will be dynamically inserted here -->
+    </div>
+
+    <div id="tree-container">
+      <svg id="tree-svg"></svg>
+    </div>
+
+    <!-- Detail Modal -->
+    <div id="modal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="modal-title">إضافة شخص</h2>
+          <button id="close-modal" class="close-btn">&times;</button>
+        </div>
+        <form id="person-form">
+          <div class="form-group">
+            <label>الاسم *</label>
+            <input type="text" id="input-name" required />
+          </div>
+          <div class="form-group">
+            <label>الجنس *</label>
+            <select id="input-gender" required>
+              <option value="male">👨 ذكر</option>
+              <option value="female">👩 أنثى</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>التواريخ</label>
+            <input
+              type="text"
+              id="input-dates"
+              placeholder="مثال: 1950 - 2020"
+            />
+          </div>
+          <div class="form-group">
+            <label>اسم الزوج/الزوجة</label>
+            <div class="spouse-input-container">
+              <input
+                type="text"
+                id="input-spouse"
+                placeholder="الاسم الكامل للزوج/الزوجة"
+                autocomplete="off"
+              />
+              <div id="spouse-suggestions" class="spouse-suggestions"></div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>ملاحظات</label>
+            <textarea id="input-info" rows="2"></textarea>
+          </div>
+          <div class="form-actions">
+            <button type="button" id="cancel-btn" class="btn secondary">
+              إلغاء
+            </button>
+            <button type="submit" class="btn primary">حفظ</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div id="context-menu" class="context-menu hidden">
+      <button id="ctx-add-child">➕ إضافة طفل</button>
+      <button id="ctx-edit">✏️ تعديل</button>
+      <button id="ctx-make-family">🏠 جعله رأس عائلة</button>
+      <button id="ctx-remove-family">↩️ إزالة كرأس عائلة</button>
+      <button id="ctx-delete">🗑️ حذف</button>
+    </div>
+
+    <!-- Load modules in correct order -->
+    <script src="data.js"></script>
+    <script src="storage.js"></script>
+    <script src="tree.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>
