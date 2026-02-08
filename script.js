@@ -94,20 +94,10 @@ function toggleExpand(personId) {
 
 // Get all root families (unique patriarchs based on familyId)
 function getRootFamilies() {
-  const familyMap = new Map();
-
-  // Collect unique family patriarchs
-  Object.values(allPersons).forEach((person) => {
-    if (person.familyId && !familyMap.has(person.familyId)) {
-      // Find the patriarch: the person whose id equals the familyId
-      const patriarch = allPersons[person.familyId];
-      if (patriarch) {
-        familyMap.set(person.familyId, patriarch);
-      }
-    }
-  });
-
-  return Array.from(familyMap.values());
+  // Return persons whose id equals their familyId (true family patriarchs)
+  return Object.values(allPersons).filter(
+    (person) => person.familyId && person.id === person.familyId,
+  );
 }
 
 // Get family surname from person's name
@@ -126,12 +116,19 @@ function renderFamilyOverview() {
   familyView.style.display = "flex";
   homeBtn.style.display = "none";
 
-  const roots = getRootFamilies();
+  let roots = getRootFamilies();
+  // Sort by number of persons (desc)
+  roots = roots
+    .map((person) => ({
+      person,
+      count: getDescendantCount(person.id),
+    }))
+    .sort((a, b) => b.count - a.count)
+    .map((entry) => entry.person);
 
   familyView.innerHTML = roots
     .map((person) => {
       const familyName = `عائلة ${person.name}`;
-
       return `
       <div class="family-card" data-person-id="${person.id}">
         <div class="family-card-icon">👨‍👩‍👧‍👦</div>
@@ -414,7 +411,6 @@ const contextMenu = document.getElementById("context-menu");
 
 function showContextMenu(event, node) {
   selectedNodeId = node.data.id;
-
   contextMenu.style.display = "block";
 
   // Position menu initially to measure its size
@@ -456,6 +452,21 @@ function showContextMenu(event, node) {
     showParentsBtn.style.display = "block";
   } else {
     showParentsBtn.style.display = "none";
+  }
+
+  // Show/hide and set action for add spouse button
+  const addSpouseBtn = document.getElementById("ctx-add-spouse");
+  if (addSpouseBtn) {
+    if (!node.data.spouseId) {
+      addSpouseBtn.style.display = "block";
+      addSpouseBtn.onclick = () => {
+        hideContextMenu();
+        openModal("add-spouse", node.data);
+      };
+    } else {
+      addSpouseBtn.style.display = "none";
+      addSpouseBtn.onclick = null;
+    }
   }
 
   // Update button actions
@@ -528,16 +539,27 @@ function openModal(action, person = null) {
   currentAction = action;
   selectedSpouseId = null; // Reset selected spouse
 
+  // Hide head-of-family fields by default
+  document.querySelector(".checkbox-wrapper").style.display = "none";
+
+  // Reset name suggestions dropdown
+  const nameInput = document.getElementById("input-name");
+  const nameSuggestions = document.getElementById("name-suggestions");
+  nameSuggestions.innerHTML = "";
+  nameSuggestions.classList.remove("show");
+
+  // Attach input event listener for suggestions (ensures it's always attached)
+  nameInput.oninput = showNameSuggestions;
+  nameInput.onblur = () =>
+    setTimeout(() => nameSuggestions.classList.remove("show"), 150);
+
   if (action === "add-root") {
     modalTitle.textContent = "إضافة شخص جديد";
     personForm.reset();
     document.getElementById("input-name").value = "";
     document.getElementById("input-gender").value = "male";
     document.getElementById("input-dates").value = "";
-    document.getElementById("input-spouse").value = "";
     document.getElementById("input-info").value = "";
-    document.getElementById("input-is-head").checked = false;
-    // Store info in data attributes - no parents
     personForm.dataset.fatherId = "";
     personForm.dataset.motherId = "";
     personForm.dataset.personId = generateId();
@@ -547,10 +569,7 @@ function openModal(action, person = null) {
     document.getElementById("input-name").value = "";
     document.getElementById("input-gender").value = "male";
     document.getElementById("input-dates").value = "";
-    document.getElementById("input-spouse").value = "";
     document.getElementById("input-info").value = "";
-    document.getElementById("input-is-head").checked = false;
-    // Store parent info in data attributes
     personForm.dataset.fatherId = person.id;
     personForm.dataset.motherId = person.spouseId || "";
     personForm.dataset.personId = generateId();
@@ -560,36 +579,43 @@ function openModal(action, person = null) {
     document.getElementById("input-name").value = "";
     document.getElementById("input-gender").value = "male";
     document.getElementById("input-dates").value = "";
-    document.getElementById("input-spouse").value = "";
     document.getElementById("input-info").value = "";
-    document.getElementById("input-is-head").checked = false;
-    // Store child info in data attributes
     personForm.dataset.childId = person.id;
     personForm.dataset.personId = generateId();
   } else if (action === "edit") {
-    modalTitle.textContent = `تعديل ${person.name}`;
+    modalTitle.textContent = ` تعديل ${person.name}`;
     document.getElementById("input-name").value = person.name;
     document.getElementById("input-gender").value = person.gender || "male";
     document.getElementById("input-dates").value = person.dates || "";
-    document.getElementById("input-spouse").value = person.spouseId
-      ? allPersons[person.spouseId]?.name || ""
-      : "";
     document.getElementById("input-info").value = person.info || "";
-    document.getElementById("input-is-head").checked =
-      person.familyId === person.id;
-    // Store person info in data attributes
     personForm.dataset.personId = person.id;
     personForm.dataset.fatherId = person.fatherId || "";
     personForm.dataset.motherId = person.motherId || "";
     personForm.dataset.spouseId = person.spouseId || "";
+  } else if (action === "add-spouse") {
+    modalTitle.textContent = `إضافة زوج/زوجة لـ ${person.name}`;
+    personForm.reset();
+    document.getElementById("input-name").value = "";
+    document.getElementById("input-gender").value =
+      person.gender === "male" ? "female" : "male";
+    document.getElementById("input-dates").value = "";
+    document.getElementById("input-info").value = "";
+    personForm.dataset.spouseFor = person.id;
+    personForm.dataset.personId = generateId();
+    document.querySelector(".checkbox-wrapper").style.display = "none";
   }
-
   modal.classList.remove("hidden");
 }
 
 function closeModal() {
   modal.classList.add("hidden");
   personForm.reset();
+  // Hide name suggestions dropdown
+  const nameSuggestions = document.getElementById("name-suggestions");
+  if (nameSuggestions) {
+    nameSuggestions.innerHTML = "";
+    nameSuggestions.classList.remove("show");
+  }
 }
 
 // =============================================
@@ -608,194 +634,146 @@ function generateId() {
 function addOrEditPerson(event) {
   event.preventDefault();
 
-  const id = personForm.dataset.personId;
-  const name = document.getElementById("input-name").value;
-  const gender = document.getElementById("input-gender").value;
-  const dates = document.getElementById("input-dates").value;
-  const spouseName = document.getElementById("input-spouse").value;
+  let id = personForm.dataset.personId;
+  let name = document.getElementById("input-name").value;
+  let gender = document.getElementById("input-gender").value;
+  let dates = document.getElementById("input-dates").value;
   const fatherId = personForm.dataset.fatherId;
   const motherId = personForm.dataset.motherId;
-  const info = document.getElementById("input-info").value;
-  const isHeadOfFamily = document.getElementById("input-is-head").checked;
+  let info = document.getElementById("input-info").value;
 
-  const personData = { id, name, gender, dates };
-  if (fatherId) personData.fatherId = fatherId;
-  if (motherId) personData.motherId = motherId;
-  if (info) personData.info = info;
+  // If a person was selected from suggestions, use their ID and info
+  const selectedId = document.getElementById("input-name").dataset.selectedId;
+  if (selectedId && allPersons[selectedId]) {
+    id = selectedId;
+    const selectedPerson = allPersons[selectedId];
+    name = selectedPerson.name;
+    gender = selectedPerson.gender;
+    dates = selectedPerson.dates || "";
+    info = selectedPerson.info || "";
+    // Clear dataset after use
+    document.getElementById("input-name").dataset.selectedId = "";
+  }
 
-  // Set familyId
-  if (isHeadOfFamily) {
-    // Person is head of their own family
-    personData.familyId = id;
+  function buildPersonData() {
+    const personData = { id, name, gender, dates };
+    if (fatherId) personData.fatherId = fatherId;
+    if (motherId) personData.motherId = motherId;
+    if (info) personData.info = info;
+    return personData;
+  }
 
-    // Update all descendants to belong to this family
-    if (currentAction === "edit" && allPersons[id]) {
-      function updateDescendants(personId) {
-        const current = allPersons[personId];
-        if (!current || !current.childrenIds) return;
-
-        current.childrenIds.forEach((childId) => {
-          const child = allPersons[childId];
-          if (child) {
-            child.familyId = id;
-            updateDescendants(childId);
-          }
-        });
-      }
-      updateDescendants(id);
-    }
-  } else if (currentAction === "add-root") {
-    // If not head and adding root, still set as their own patriarch
-    personData.familyId = id;
-  } else if (currentAction === "add-child") {
-    // Child inherits familyId from father, or mother if no father
+  function handleAddChild() {
+    const personData = buildPersonData();
     if (fatherId && allPersons[fatherId]) {
       personData.familyId = allPersons[fatherId].familyId;
     } else if (motherId && allPersons[motherId]) {
       personData.familyId = allPersons[motherId].familyId;
     }
-  } else if (currentAction === "edit" && allPersons[id]) {
-    // If not head, inherit from parent or keep existing
-    if (fatherId && allPersons[fatherId]) {
-      personData.familyId = allPersons[fatherId].familyId;
-    } else if (motherId && allPersons[motherId]) {
-      personData.familyId = allPersons[motherId].familyId;
-    } else {
-      personData.familyId = allPersons[id].familyId;
-    }
-  }
-
-  // Handle spouse
-  if (currentAction === "edit") {
-    if (personForm.dataset.spouseId && spouseName) {
-      // Has existing spouse - update name
-      personData.spouseId = personForm.dataset.spouseId;
-      if (allPersons[personForm.dataset.spouseId]) {
-        allPersons[personForm.dataset.spouseId].name = spouseName;
-      }
-    } else if (spouseName && !personForm.dataset.spouseId) {
-      // Adding new spouse during edit
-      if (selectedSpouseId && allPersons[selectedSpouseId]) {
-        // Use existing person as spouse
-        personData.spouseId = selectedSpouseId;
-        allPersons[selectedSpouseId].spouseId = id;
-        if (!allPersons[selectedSpouseId].childrenIds) {
-          allPersons[selectedSpouseId].childrenIds = [];
-        }
-      } else {
-        // Create new spouse
-        const spouseId = generateId();
-        const spouseGender = gender === "male" ? "female" : "male";
-        const spouse = {
-          id: spouseId,
-          name: spouseName,
-          gender: spouseGender,
-          familyId: spouseId,
-          spouseId: id,
-          childrenIds: [],
-        };
-        allPersons[spouseId] = spouse;
-        personData.spouseId = spouseId;
-      }
-    } else if (!spouseName && personForm.dataset.spouseId) {
-      // Keep existing spouse if field is empty
-      personData.spouseId = personForm.dataset.spouseId;
-    }
-  } else if (
-    spouseName &&
-    (currentAction === "add-child" ||
-      currentAction === "add-root" ||
-      currentAction === "add-parent")
-  ) {
-    // Check if a spouse was selected from suggestions
-    if (selectedSpouseId && allPersons[selectedSpouseId]) {
-      // Use existing person as spouse
-      personData.spouseId = selectedSpouseId;
-      // Update the existing spouse's spouseId to link back
-      allPersons[selectedSpouseId].spouseId = id;
-      // Sync children lists
-      if (!allPersons[selectedSpouseId].childrenIds) {
-        allPersons[selectedSpouseId].childrenIds = [];
-      }
-    } else {
-      // Create new spouse for new person
-      const spouseId = generateId();
-      const spouseGender = gender === "male" ? "female" : "male"; // Opposite gender
-      const spouse = {
-        id: spouseId,
-        name: spouseName,
-        gender: spouseGender,
-        familyId: spouseId, // Spouse is their own family patriarch (we don't know their parents)
-        spouseId: id,
-        childrenIds: [],
-      };
-      allPersons[spouseId] = spouse;
-      personData.spouseId = spouseId;
-    }
-  }
-
-  if (
-    currentAction === "add-child" ||
-    currentAction === "add-root" ||
-    currentAction === "add-parent"
-  ) {
     personData.childrenIds = [];
     allPersons[id] = personData;
-
-    // Add to parent's children (only if adding child, not root)
-    if (currentAction === "add-child") {
-      if (fatherId && allPersons[fatherId]) {
-        if (!allPersons[fatherId].childrenIds)
-          allPersons[fatherId].childrenIds = [];
-        allPersons[fatherId].childrenIds.push(id);
-      }
-      if (motherId && allPersons[motherId]) {
-        if (!allPersons[motherId].childrenIds)
-          allPersons[motherId].childrenIds = [];
-        allPersons[motherId].childrenIds.push(id);
-      }
-    } else if (currentAction === "add-parent") {
-      // Adding a parent to an existing person
-      const childId = personForm.dataset.childId;
-      const child = allPersons[childId];
-
-      if (child) {
-        // Add child to new parent's children
-        personData.childrenIds = [childId];
-
-        // Update child's parent reference based on gender
-        if (gender === "male") {
-          child.fatherId = id;
-        } else {
-          child.motherId = id;
-        }
-
-        // Parent remains in their own family (doesn't affect child's family)
-        // The parent will only appear when navigating up the tree
-
-        // Navigate to show the new parent's tree
-        currentView = "tree";
-        currentRootId = id;
-        expandedNodes.clear();
-        expandedNodes.add(id);
-      }
-    } else if (currentAction === "add-root") {
-      // When adding a root person, check current view
-      if (currentView === "home") {
-        // Stay on home view and refresh to show new family
-        currentView = "home";
-      } else {
-        // Show their tree if we're already in tree view
-        currentView = "tree";
-        currentRootId = id;
-        expandedNodes.clear();
-        expandedNodes.add(id);
-      }
+    if (fatherId && allPersons[fatherId]) {
+      if (!allPersons[fatherId].childrenIds)
+        allPersons[fatherId].childrenIds = [];
+      allPersons[fatherId].childrenIds.push(id);
     }
-  } else if (currentAction === "edit") {
-    // Preserve childrenIds
+    if (motherId && allPersons[motherId]) {
+      if (!allPersons[motherId].childrenIds)
+        allPersons[motherId].childrenIds = [];
+      allPersons[motherId].childrenIds.push(id);
+    }
+  }
+
+  function handleAddRoot() {
+    const personData = buildPersonData();
+    personData.familyId = id;
+    personData.childrenIds = [];
+    allPersons[id] = personData;
+    if (currentView === "home") {
+      currentView = "home";
+    } else {
+      currentView = "tree";
+      currentRootId = id;
+      expandedNodes.clear();
+      expandedNodes.add(id);
+    }
+  }
+
+  function handleAddParent() {
+    const personData = buildPersonData();
+    const childId = personForm.dataset.childId;
+    const child = allPersons[childId];
+    // If this parent already exists, preserve their childrenIds, else start with []
+    let childrenIds =
+      allPersons[id] && Array.isArray(allPersons[id].childrenIds)
+        ? [...allPersons[id].childrenIds]
+        : [];
+    // Add the new child if not already present
+    if (!childrenIds.includes(childId)) {
+      childrenIds.push(childId);
+    }
+    personData.childrenIds = childrenIds;
+    if (child) {
+      if (gender === "male") {
+        child.fatherId = id;
+      } else {
+        child.motherId = id;
+      }
+      currentView = "tree";
+      currentRootId = id;
+      expandedNodes.clear();
+      expandedNodes.add(id);
+    }
+    allPersons[id] = personData;
+  }
+
+  function handleEdit() {
+    const personData = buildPersonData();
     personData.childrenIds = allPersons[id].childrenIds || [];
     allPersons[id] = personData;
+  }
+
+  function handleAddSpouse() {
+    const spouseForId = personForm.dataset.spouseFor;
+    const spouseName = document.getElementById("input-name").value;
+    const spouseGender = document.getElementById("input-gender").value;
+    const spouseDates = document.getElementById("input-dates").value;
+    const spouseInfo = document.getElementById("input-info").value;
+    const spouseId = id;
+    const spouse = {
+      id: spouseId,
+      name: spouseName,
+      gender: spouseGender,
+      dates: spouseDates,
+      info: spouseInfo,
+      spouseId: spouseForId,
+      familyId: spouseId,
+      childrenIds: allPersons[spouseForId]?.childrenIds
+        ? [...allPersons[spouseForId].childrenIds]
+        : [],
+    };
+    allPersons[spouseId] = spouse;
+    allPersons[spouseForId].spouseId = spouseId;
+  }
+
+  switch (currentAction) {
+    case "add-child":
+      handleAddChild();
+      break;
+    case "add-root":
+      handleAddRoot();
+      break;
+    case "add-parent":
+      handleAddParent();
+      break;
+    case "edit":
+      handleEdit();
+      break;
+    case "add-spouse":
+      handleAddSpouse();
+      break;
+    default:
+      break;
   }
 
   saveData();
@@ -804,29 +782,68 @@ function addOrEditPerson(event) {
 }
 
 function deletePerson(personId) {
-  // Remove from parents' childrenIds
   const person = allPersons[personId];
-  if (person.fatherId && allPersons[person.fatherId]) {
-    allPersons[person.fatherId].childrenIds = allPersons[
-      person.fatherId
-    ].childrenIds.filter((id) => id !== personId);
-  }
-  if (person.motherId && allPersons[person.motherId]) {
-    allPersons[person.motherId].childrenIds = allPersons[
-      person.motherId
-    ].childrenIds.filter((id) => id !== personId);
-  }
+  if (!person) return;
 
-  // Delete person
+  removeFromParents(person);
+  removeFromSpouse(person);
+  removeFromChildren(person);
   delete allPersons[personId];
 
-  // If it's the current root, go back to p1
   if (currentRootId === personId) {
-    currentRootId = "p1";
+    // If the deleted person was the current root, navigate to home
+    goHome();
   }
 
   saveData();
   render();
+}
+
+function removeFromParents(person) {
+  const personId = person.id;
+  if (person.fatherId) {
+    const father = allPersons[person.fatherId];
+    if (father && Array.isArray(father.childrenIds)) {
+      father.childrenIds = father.childrenIds.filter((id) => id !== personId);
+    }
+  }
+  if (person.motherId) {
+    const mother = allPersons[person.motherId];
+    if (mother && Array.isArray(mother.childrenIds)) {
+      mother.childrenIds = mother.childrenIds.filter((id) => id !== personId);
+    }
+  }
+}
+
+function removeFromSpouse(person) {
+  const personId = person.id;
+  if (person.spouseId) {
+    const spouse = allPersons[person.spouseId];
+    if (spouse) {
+      if (spouse.spouseId === personId) {
+        delete spouse.spouseId;
+      }
+    }
+  }
+}
+
+function removeFromChildren(person) {
+  const personId = person.id;
+  if (person.childrenIds && person.childrenIds.length > 0) {
+    person.childrenIds
+      .map((childId) => allPersons[childId])
+      .filter(
+        (child) => child.fatherId === personId || child.motherId === personId,
+      )
+      .forEach((child) => {
+        if (child.fatherId === personId) {
+          delete child.fatherId;
+        }
+        if (child.motherId === personId) {
+          delete child.motherId;
+        }
+      });
+  }
 }
 
 // Make a person the root of their own family
@@ -837,21 +854,7 @@ function makePersonFamilyRoot(personId) {
   // Set this person as their own family patriarch
   person.familyId = personId;
 
-  // Update all descendants to belong to this family
-  function updateDescendants(id) {
-    const current = allPersons[id];
-    if (!current || !current.childrenIds) return;
-
-    current.childrenIds.forEach((childId) => {
-      const child = allPersons[childId];
-      if (child) {
-        child.familyId = personId;
-        updateDescendants(childId); // Recursively update grandchildren
-      }
-    });
-  }
-
-  updateDescendants(personId);
+  updateDescendants(person);
 
   saveData();
   render();
@@ -867,42 +870,15 @@ function removePersonAsFamilyRoot(personId) {
 
   // Determine the new family ID
   let newFamilyId = null;
-
   if (person.fatherId && allPersons[person.fatherId]) {
-    // Inherit father's familyId
     newFamilyId = allPersons[person.fatherId].familyId;
   } else if (person.motherId && allPersons[person.motherId]) {
-    // Or mother's familyId if no father
     newFamilyId = allPersons[person.motherId].familyId;
   }
-  // If no parents, newFamilyId stays null
 
-  // Update this person
-  if (newFamilyId) {
-    person.familyId = newFamilyId;
-  } else {
-    delete person.familyId;
-  }
+  person.familyId = newFamilyId;
 
-  // Update all descendants to the same familyId
-  function updateDescendants(id) {
-    const current = allPersons[id];
-    if (!current || !current.childrenIds) return;
-
-    current.childrenIds.forEach((childId) => {
-      const child = allPersons[childId];
-      if (child) {
-        if (newFamilyId) {
-          child.familyId = newFamilyId;
-        } else {
-          delete child.familyId;
-        }
-        updateDescendants(childId); // Recursively update grandchildren
-      }
-    });
-  }
-
-  updateDescendants(personId);
+  updateDescendants(person);
 
   saveData();
   render();
@@ -913,6 +889,24 @@ function removePersonAsFamilyRoot(personId) {
   } else {
     alert(`${person.name} وأفراده لم يعودوا لهم انتماء عائلي.`);
   }
+}
+
+function updateDescendants(person) {
+  if (!person || !person.childrenIds) return;
+  // Collect all male descendants iteratively
+  const stack = [...person.childrenIds];
+  const maleDescendants = [];
+  while (stack.length) {
+    const id = stack.pop();
+    const child = allPersons[id];
+    if (child?.gender === "male") {
+      maleDescendants.push(child);
+      stack.push(...child.childrenIds);
+    }
+  }
+  maleDescendants.forEach((descendant) => {
+    descendant.familyId = person.familyId;
+  });
 }
 
 // =============================================
@@ -994,59 +988,65 @@ function searchPerson() {
   }
 }
 
-function showSpouseSuggestions() {
-  const query = spouseInput.value.toLowerCase().trim();
+// =============================================
+// NAME SUGGESTIONS (GLOBAL)
+// =============================================
+function showNameSuggestions() {
+  const nameInput = document.getElementById("input-name");
+  const genderInput = document.getElementById("input-gender");
+  const datesInput = document.getElementById("input-dates");
 
-  // Clear selected spouse when typing
-  selectedSpouseId = null;
-
+  const nameSuggestions = document.getElementById("name-suggestions");
+  const query = nameInput.value.toLowerCase().trim();
   if (!query) {
-    spouseSuggestions.classList.remove("show");
+    nameSuggestions.innerHTML = "";
+    nameSuggestions.classList.remove("show");
     return;
   }
-
+  // Suggest persons not the current one (for edit), and not already linked as spouse/parent/child
+  const excludeId = personForm.dataset.personId;
   const results = Object.values(allPersons)
-    .filter(
-      (p) =>
-        p.name.toLowerCase().includes(query) ||
-        (p.dates && p.dates.toLowerCase().includes(query)),
-    )
-    .slice(0, 6); // Limit to 6 suggestions
-
+    .filter((p) => p.name.toLowerCase().includes(query) && p.id !== excludeId)
+    .slice(0, 6);
   if (results.length === 0) {
-    spouseSuggestions.classList.remove("show");
+    nameSuggestions.innerHTML = "";
+    nameSuggestions.classList.remove("show");
     return;
   }
-
-  spouseSuggestions.innerHTML = results
+  nameSuggestions.innerHTML = results
     .map((person) => {
       const patriarch = allPersons[person.familyId];
       const familyName = patriarch
         ? `عائلة ${patriarch.name}`
         : `عائلة ${person.name}`;
       return `
-        <div class="spouse-suggestion-item" data-person-id="${person.id}">
-          <div class="spouse-suggestion-name">${person.name}</div>
-          <div class="spouse-suggestion-family">${familyName} ${person.dates ? "• " + person.dates : ""}</div>
+        <div class="name-suggestion-item" data-id="${person.id}">
+          <div class="name-suggestion-name">${person.name}</div>
+          <div class="name-suggestion-info">${familyName} ${person.dates ? "• " + person.dates : ""}</div>
         </div>
       `;
     })
     .join("");
-
-  // Add click handlers
-  spouseSuggestions
-    .querySelectorAll(".spouse-suggestion-item")
-    .forEach((item) => {
-      item.addEventListener("click", () => {
-        const personId = item.dataset.personId;
-        const person = allPersons[personId];
-        spouseInput.value = person.name;
-        selectedSpouseId = personId; // Store the selected spouse ID
-        spouseSuggestions.classList.remove("show");
-      });
+  nameSuggestions.classList.add("show");
+  // Click handler
+  nameSuggestions.querySelectorAll(".name-suggestion-item").forEach((item) => {
+    item.addEventListener("click", () => {
+      const personId = item.dataset.id;
+      const person = allPersons[personId];
+      if (person) {
+        nameInput.value = person.name;
+        nameInput.dataset.selectedId = personId;
+        // Fill other fields if present
+        const genderInput = document.getElementById("input-gender");
+        const datesInput = document.getElementById("input-dates");
+        const infoInput = document.getElementById("input-info");
+        if (genderInput) genderInput.value = person.gender || "male";
+        if (datesInput) datesInput.value = person.dates || "";
+        if (infoInput) infoInput.value = person.info || "";
+      }
+      nameSuggestions.classList.remove("show");
     });
-
-  spouseSuggestions.classList.add("show");
+  });
 }
 
 // =============================================
@@ -1132,20 +1132,6 @@ function setupEventListeners() {
   searchInput.addEventListener("keypress", (e) => {
     if (e.key === "Enter") searchPerson();
   });
-
-  // Spouse suggestions
-  spouseInput.addEventListener("input", showSpouseSuggestions);
-
-  // Close suggestions when clicking outside
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest(".search-container")) {
-      searchSuggestions.classList.remove("show");
-    }
-    if (!e.target.closest(".spouse-input-container")) {
-      spouseSuggestions.classList.remove("show");
-    }
-  });
-
   // Modal close button
   document.getElementById("close-modal").onclick = closeModal;
 

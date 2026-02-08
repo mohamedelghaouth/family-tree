@@ -86,7 +86,8 @@
         <form id="person-form">
           <div class="form-group">
             <label>الاسم *</label>
-            <input type="text" id="input-name" required />
+            <input type="text" id="input-name" required autocomplete="on" />
+            <div id="name-suggestions" class="name-suggestions"></div>
           </div>
           <div class="form-group">
             <label>الجنس *</label>
@@ -110,18 +111,6 @@
             />
           </div>
           <div class="form-group">
-            <label>اسم الزوج/الزوجة</label>
-            <div class="spouse-input-container">
-              <input
-                type="text"
-                id="input-spouse"
-                placeholder="الاسم الكامل للزوج/الزوجة"
-                autocomplete="off"
-              />
-              <div id="spouse-suggestions" class="spouse-suggestions"></div>
-            </div>
-          </div>
-          <div class="form-group">
             <label>ملاحظات</label>
             <textarea id="input-info" rows="2"></textarea>
           </div>
@@ -140,6 +129,9 @@
       <button id="ctx-add-child">➕ إضافة طفل</button>
       <button id="ctx-add-parent">👤 إضافة والد</button>
       <button id="ctx-show-parents">👆 عرض الوالدين</button>
+      <button id="ctx-add-spouse" style="display: none">
+        💍 إضافة زوج/زوجة
+      </button>
       <button id="ctx-edit">✏️ تعديل</button>
       <button id="ctx-make-family">🏠 جعله رأس عائلة</button>
       <button id="ctx-remove-family">↩️ إزالة كرأس عائلة</button>
