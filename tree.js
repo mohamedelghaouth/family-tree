@@ -136,7 +136,7 @@ const Tree = {
   ) {
     this.g.selectAll("*").remove();
 
-    // Add a large background rectangle for panning (very subtle color, captures all events)
+    // Add a large background rectangle for panning (captures all events, including touch)
     this.g
       .append("rect")
       .attr("class", "tree-background")
@@ -146,7 +146,18 @@ const Tree = {
       .attr("y", -this.height * 5)
       .attr("fill", "rgba(0, 0, 0, 0.01)") // Very subtle, almost invisible
       .attr("pointer-events", "all")
-      .style("cursor", "grab");
+      .style("cursor", "grab")
+      // Enable zoom/pan on background for both mouse and touch
+      .on("mousedown touchstart", (event) => {
+        // Only allow pan if not right-click or multitouch
+        if (
+          (event.type === "mousedown" && event.button === 2) ||
+          (event.touches && event.touches.length > 1)
+        )
+          return;
+        // Let d3-zoom handle the event
+        // (d3-zoom is already attached to svg, so just don't block it)
+      });
 
     // Get path to target if specified
     let pathToTarget = [];
@@ -239,13 +250,17 @@ const Tree = {
           .drag()
           .filter((event) => {
             // Allow dragging on touch and mouse primary button
-            return event.type === "mousedown" ? event.button === 0 : true;
+            // But only if it's a single touch (not a pan/zoom gesture)
+            if (event.type === "mousedown") return event.button === 0;
+            if (event.type === "touchstart") {
+              // Only allow drag if single touch and not panning background
+              return event.touches && event.touches.length === 1;
+            }
+            return true;
           })
           .touchable(true)
           .on("start", function (event, d) {
-            // Don't stop propagation immediately - let it happen after drag starts moving
             d3.select(this).style("cursor", "grabbing");
-            // Store initial position
             d._dragStartX = d.x;
             d._dragStartY = d.y;
             d._hasDragged = false;
@@ -303,7 +318,6 @@ const Tree = {
             updateLinks(); // Update links during drag
           })
           .on("end", function (event, d) {
-            // Only stop propagation if we actually dragged (not just a tap)
             if (d._hasDragged) {
               event.sourceEvent.stopPropagation();
             }
@@ -317,6 +331,23 @@ const Tree = {
       .on("contextmenu", (event, d) => {
         event.preventDefault();
         onNodeRightClick(event, d);
+      })
+      // Add long-press support for mobile (touch)
+      .on("touchstart", function (event, d) {
+        if (event.touches && event.touches.length === 1) {
+          // Start a timer for long-press
+          this._touchTimeout = setTimeout(() => {
+            // Synthesize a contextmenu event
+            onNodeRightClick(event, d);
+          }, 500); // 500ms long-press
+        }
+      })
+      .on("touchend touchmove touchcancel", function () {
+        // Cancel long-press if touch ends/moves/cancels
+        if (this._touchTimeout) {
+          clearTimeout(this._touchTimeout);
+          this._touchTimeout = null;
+        }
       });
 
     const cardWidth = 150;

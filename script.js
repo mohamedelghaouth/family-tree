@@ -133,7 +133,7 @@ function renderFamilyOverview() {
       <div class="family-card" data-person-id="${person.id}">
         <div class="family-card-icon">👨‍👩‍👧‍👦</div>
         <h3>${familyName}</h3>
-        <p class="family-members">${getDescendantCount(person.id)} أفراد</p>
+        <!-- <p class="family-members">${getDescendantCount(person.id)} أفراد</p> -->
       </div>
     `;
     })
@@ -686,7 +686,6 @@ function addOrEditPerson(event) {
 
   function handleAddRoot() {
     const personData = buildPersonData();
-    personData.familyId = id;
     personData.childrenIds = [];
     allPersons[id] = personData;
     if (currentView === "home") {
@@ -747,7 +746,6 @@ function addOrEditPerson(event) {
       dates: spouseDates,
       info: spouseInfo,
       spouseId: spouseForId,
-      familyId: spouseId,
       childrenIds: allPersons[spouseForId]?.childrenIds
         ? [...allPersons[spouseForId].childrenIds]
         : [],
@@ -895,18 +893,14 @@ function updateDescendants(person) {
   if (!person || !person.childrenIds) return;
   // Collect all male descendants iteratively
   const stack = [...person.childrenIds];
-  const maleDescendants = [];
   while (stack.length) {
     const id = stack.pop();
     const child = allPersons[id];
+    child.familyId = person.familyId;
     if (child?.gender === "male") {
-      maleDescendants.push(child);
       stack.push(...child.childrenIds);
     }
   }
-  maleDescendants.forEach((descendant) => {
-    descendant.familyId = person.familyId;
-  });
 }
 
 // =============================================
@@ -917,7 +911,23 @@ const searchSuggestions = document.getElementById("search-suggestions");
 const spouseInput = document.getElementById("input-spouse");
 const spouseSuggestions = document.getElementById("spouse-suggestions");
 let selectedSpouseId = null; // Track if a spouse was selected from suggestions
+// Helper: Get family name or fallback to father's name
+function getPersonFamilyName(person) {
+  const family = allPersons[person.familyId];
+  const father = person.fatherId ? allPersons[person.fatherId] : undefined;
+  let familyName = "";
+  if (father) {
+    familyName += `ولد ${father.name} `;
+  }
+  if (family) {
+    familyName += `من عائلة ${family.name}`;
+  }
+  if (!family && !father) {
+    familyName += "بدون عائلة";
+  }
 
+  return familyName;
+}
 function showSearchSuggestions() {
   const query = searchInput.value.toLowerCase().trim();
 
@@ -941,10 +951,7 @@ function showSearchSuggestions() {
 
   searchSuggestions.innerHTML = results
     .map((person) => {
-      const patriarch = allPersons[person.familyId];
-      const familyName = patriarch
-        ? `عائلة ${patriarch.name}`
-        : `عائلة ${person.name}`;
+      const familyName = getPersonFamilyName(person);
       return `
         <div class="search-suggestion-item" data-person-id="${person.id}">
           <div class="search-suggestion-name">${person.name}</div>
