@@ -330,14 +330,22 @@ const Tree = {
       })
       .on("contextmenu", (event, d) => {
         event.preventDefault();
+        // Prevent double context menu if long-press already triggered
+        if (this._longPressFired) {
+          this._longPressFired = false;
+          return;
+        }
         onNodeRightClick(event, d);
       })
-      // Add long-press support for mobile (touch)
+      // Add long-press support for mobile (touch, iOS compatible)
       .on("touchstart", function (event, d) {
-        if (event.touches && event.touches.length === 1) {
-          // Start a timer for long-press
+        // Only single-finger touch
+        const touches = event.touches || event.changedTouches;
+        if (touches && touches.length === 1) {
+          event.preventDefault(); // Prevent iOS synthetic events
+          this._longPressFired = false;
           this._touchTimeout = setTimeout(() => {
-            // Synthesize a contextmenu event
+            this._longPressFired = true;
             onNodeRightClick(event, d);
           }, 500); // 500ms long-press
         }
