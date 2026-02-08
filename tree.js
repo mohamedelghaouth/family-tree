@@ -328,7 +328,7 @@ const Tree = {
         event.stopPropagation();
         onNodeClick(d);
       })
-      .on("contextmenu", (event, d) => {
+      .on("contextmenu", function (event, d) {
         event.preventDefault();
         // Prevent double context menu if long-press already triggered
         if (this._longPressFired) {
@@ -336,32 +336,68 @@ const Tree = {
           return;
         }
         onNodeRightClick(event, d);
-      })
-      // Add long-press support for mobile (touch, iOS compatible)
-      .on("touchstart", function (event, d) {
-        // Only single-finger touch
-        const touches = event.touches || event.changedTouches;
-        if (touches && touches.length === 1) {
-          event.preventDefault(); // Prevent iOS synthetic events
-          this._longPressFired = false;
-          this._touchTimeout = setTimeout(() => {
-            this._longPressFired = true;
-            onNodeRightClick(event, d);
-          }, 500); // 500ms long-press
+      });
+
+    // Add a three-dot (ellipsis) button for actions/context menu (mobile-friendly)
+    // Place button inside the card, top-right, with padding
+    // Place button to the left of the name, vertically aligned
+    nodes
+      .append("text")
+      .attr("class", "node-actions-btn")
+      .attr("x", -52) // left of name, similar offset as gender icon on right
+      .attr("y", -22)
+      .attr("font-size", "22px")
+      .attr("text-anchor", "middle")
+      .attr("cursor", "pointer")
+      .attr("fill", "#ff9800") // High-contrast orange
+      .attr("stroke", "#fff")
+      .attr("stroke-width", 1.2)
+      .style("paint-order", "stroke")
+      .style("user-select", "none")
+      .text("\u22ee") // Unicode vertical ellipsis
+      .on("click touchstart", function (event, d) {
+        event.stopPropagation();
+        event.preventDefault();
+        // Enhanced: pass node position for smart menu placement
+        const node = this;
+        // Get bounding rect of SVG and node
+        const svgRect = Tree.svg.node().getBoundingClientRect();
+        const nodeRect = node.getBoundingClientRect();
+        // Calculate preferred menu position
+        let menuX = nodeRect.right;
+        let menuY = nodeRect.top;
+        let placement = "right";
+        const menuWidth = 180; // estimate, adjust as needed
+        const menuHeight = 220; // estimate, adjust as needed
+        // Try right
+        if (nodeRect.right + menuWidth < svgRect.right) {
+          menuX = nodeRect.right;
+          menuY = nodeRect.top;
+          placement = "right";
+        } else if (nodeRect.left - menuWidth > svgRect.left) {
+          // Try left
+          menuX = nodeRect.left - menuWidth;
+          menuY = nodeRect.top;
+          placement = "left";
+        } else if (nodeRect.bottom + menuHeight < svgRect.bottom) {
+          // Try below
+          menuX = nodeRect.left;
+          menuY = nodeRect.bottom;
+          placement = "down";
+        } else {
+          // Default: above
+          menuX = nodeRect.left;
+          menuY = nodeRect.top - menuHeight;
+          placement = "up";
         }
-      })
-      .on("touchend touchmove touchcancel", function () {
-        // Cancel long-press if touch ends/moves/cancels
-        if (this._touchTimeout) {
-          clearTimeout(this._touchTimeout);
-          this._touchTimeout = null;
-        }
+        // Pass menuX, menuY, and placement to the handler
+        onNodeRightClick(event, d, { menuX, menuY, placement });
       });
 
     const cardWidth = 150;
     const cardHeight = 80;
-
     // Card background
+
     nodes
       .append("rect")
       .attr("class", "node-card")
@@ -369,6 +405,28 @@ const Tree = {
       .attr("y", -cardHeight / 2)
       .attr("width", cardWidth)
       .attr("height", cardHeight);
+
+    // Add the three-dot actions button after the card, before the name
+    nodes
+      .append("text")
+      .attr("class", "node-actions-btn")
+      .attr("x", -58)
+      .attr("y", -22)
+      .attr("font-size", "18px")
+      .attr("text-anchor", "middle")
+      .attr("cursor", "pointer")
+      .attr("fill", "#fff")
+      .attr("stroke", "#ff9800")
+      .attr("stroke-width", 1.2)
+      .style("paint-order", "stroke")
+      .style("user-select", "none")
+      .style("pointer-events", "auto")
+      .text("\u22ee")
+      .on("click touchstart", function (event, d) {
+        event.stopPropagation();
+        event.preventDefault();
+        onNodeRightClick(event, d);
+      });
 
     // Name
     nodes
