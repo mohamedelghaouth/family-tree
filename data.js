@@ -265,7 +265,7 @@ const initialFamilyData = {
   p29: {
     id: "p29",
     name: "صفية",
-    gender: "male",
+    gender: "female",
     dates: "",
     fatherId: "p7",
     familyId: "p71",

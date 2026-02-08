@@ -623,12 +623,48 @@ function closeModal() {
 // =============================================
 
 function generateId() {
-  let maxId = 0;
-  Object.keys(allPersons).forEach((key) => {
-    const num = parseInt(key.substring(1));
-    if (num > maxId) maxId = num;
-  });
-  return `p${maxId + 1}`;
+  // Use a hash of user IP, timestamp, and a random UUID for uniqueness
+  // Get user IP (from localStorage cache or fetch if not present)
+  let userIp = localStorage.getItem("user_ip") || "";
+  if (!userIp) {
+    // Try to fetch IP asynchronously (will be used for next call)
+    fetch("https://api.ipify.org?format=json")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.ip) localStorage.setItem("user_ip", data.ip);
+      });
+  }
+  // Use person info if available (from modal fields)
+  let info = "";
+  try {
+    const name = document.getElementById("input-name")?.value || "";
+    const gender = document.getElementById("input-gender")?.value || "";
+    const dates = document.getElementById("input-dates")?.value || "";
+    info = name + gender + dates;
+  } catch (e) {}
+  // Generate a random UUID (v4)
+  function uuidv4() {
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
+      /[xy]/g,
+      function (c) {
+        var r = (Math.random() * 16) | 0,
+          v = c === "x" ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      },
+    );
+  }
+  // Simple hash function (djb2)
+  function hashString(str) {
+    let hash = 5381;
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) + hash + str.charCodeAt(i);
+    }
+    return Math.abs(hash).toString(36);
+  }
+  const base = userIp + info + Date.now() + Math.random();
+  const hash = hashString(base);
+  const uuid = uuidv4();
+  return `p${hash}-${uuid}`;
 }
 
 function addOrEditPerson(event) {
@@ -917,7 +953,11 @@ function getPersonFamilyName(person) {
   const father = person.fatherId ? allPersons[person.fatherId] : undefined;
   let familyName = "";
   if (father) {
-    familyName += `ولد ${father.name} `;
+    if (person.gender === "female") {
+      familyName += `منت ${father.name} `; // daughter of
+    } else {
+      familyName += `ولد ${father.name} `; // son of
+    }
   }
   if (family) {
     familyName += `من عائلة ${family.name}`;
@@ -1022,10 +1062,7 @@ function showNameSuggestions() {
   }
   nameSuggestions.innerHTML = results
     .map((person) => {
-      const patriarch = allPersons[person.familyId];
-      const familyName = patriarch
-        ? `عائلة ${patriarch.name}`
-        : `عائلة ${person.name}`;
+      const familyName = getPersonFamilyName(person);
       return `
         <div class="name-suggestion-item" data-id="${person.id}">
           <div class="name-suggestion-name">${person.name}</div>
